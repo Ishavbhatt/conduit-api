@@ -190,17 +190,17 @@ router.delete('/:slug/favorite', (req, res, next) => {
     });
 });
 
-// feed - Article feed by the users you following
-router.get("/feed", (req,res) => {
-    User.findById(req.user.userId, (err,user) => {
-        if(err) return res.json({err});
-        user.following.forEach(e => {
-            Article.find({userId: e}, (err,feed) => {
-                if(err) return res.json({err});
-                res.json({feed});
-            })
-        })
-    })
-})
+// // feed - Article feed by the users you following
+// router.get("/feed", (req,res) => {
+//     User.findById(req.user.userId, (err,user) => {
+//         if(err) return res.json({err});
+//         user.following.forEach(e => {
+//             Article.find({userId: e}, (err,feed) => {
+//                 if(err) return res.json({err});
+//                 res.json({feed});
+//             })
+//         })
+//     })
+// })
 
 module.exports = router;
