@@ -3,11 +3,11 @@ var router = express.Router();
 var Tag = require('../models/tag');
 
 router.get('/', (req, res, next) => {
-    Tag.find({}).populate({ path: 'articleId', populate: {path: 'userId'} }).exec((err, tagList) => {
-        console.log(tagList)
+    Tag.find({}).populate({ path: 'articleId' }).exec((err, tags) => {
+        console.log(tags)
         if(err) return res.json({success: false, err});
-        if(!tagList) return res.json({success: false, msg: "Tag Not Found"});
-        return res.json({tagList});
+        if(!tags) return res.json({success: false, msg: "Tag Not Found"});
+        return res.json({tags});
         next();
     });
 });

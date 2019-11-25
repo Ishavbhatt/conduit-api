@@ -25,14 +25,16 @@ router.post("/:username/follow",(req,res)=>{
     var username=req.params.username;
     User.findOne({username},(err,user)=>{
         if(err) return res.json({err});
-        if(!user.followers.includes(username)){
-            User.findOneAndUpdate({username},{$push : {followers : req.user.username}},(err,followinguser)=>{
+        if(!user.followers.includes(req.user.username)){
+            User.findOneAndUpdate({username},{$push : {followers : req.user.username}},{new: true},(err,followinguser)=>{
                 if(err) return res.json({err});
-                User.findOneAndUpdate(req.user.userId,{$push : {following:followinguser.username}},(err,currentuser)=>{
+                User.findByIdAndUpdate(req.user.userId,{$push : {following:followinguser.username}},{new: true},(err,currentuser)=>{
                     if(err) return res.json({err});
                     res.json({currentuser,followinguser});
                 });
             });
+        } else {
+            res.json(user);
         }
 
     });
@@ -40,21 +42,26 @@ router.post("/:username/follow",(req,res)=>{
 
 
 // UnFollow User
-router.post("/:username/follow",(req,res)=>{
+router.delete("/:username/follow",(req,res)=>{
     var username=req.params.username;
     User.findOne({username},(err,user)=>{
         if(err) return res.json({err});
-        if(!user.followers.includes(username)){
-            User.findOneAndUpdate({username},{$pull : {followers : req.user.username}},(err,followinguser)=>{
+        if(user.followers.includes(req.user.username)){
+            User.findOneAndUpdate({username},{$pull : {followers : req.user.username}},{new: true},(err,unfollowinguser)=>{
                 if(err) return res.json({err});
-                User.findOneAndUpdate(req.user.userId,{$pull : {following:followinguser.username}},(err,currentuser)=>{
+                User.findByIdAndUpdate(req.user.userId,{$pull : {following: unfollowinguser.username}},{new: true},(err,currentuser)=>{
                     if(err) return res.json({err});
-                    res.json({currentuser,followinguser});
+                    res.json({currentuser, unfollowinguser})
+
                 });
             });
-        }
+        }   else {
+            res.json(user);
 
-    });
+        }}
+ 
+
+    );
 });
 
 module.exports = router;

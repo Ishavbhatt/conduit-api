@@ -4,12 +4,13 @@ var Article = require('../models/article');
 var User = require('../models/user');
 var Comment = require('../models/comment');
 var auth = require('../middleware/auth');
+var Tag = require('../models/tag');
 var logged = auth.validatetoken;
 
 
 // List of Articles
 router.get('/', logged, (req, res, next) => {
-    Article.find({}).populate("userId", "username email bio image").exec((err, articlelist) => {
+    Article.find({}).populate("author","-password").exec((err, articlelist) => {
         if(err) return next(err);
         res.json({articlelist});
     });
@@ -29,35 +30,28 @@ router.use(auth.validatetoken);
 
 // Creating newArticle.
 router.post('/', (req, res, next) => {
-    req.body.userId = req.userId;
-    Article.create(req.body, (err, newArticle) => {
-        if(err) return res.json({msg: "Err while creating new article", err});
-        // Creating Tags.
-        if(newArticle.tag) {
-            var tagArr = newArticle.tag.split(',');
-            tagArr.forEach(e => {
-                Tag.findOne({tags: e.trim()}, (err, existingTag) => {
-                    if(err) return res.json({msg: "Err while finding tag."});
-                    if(!existingTag) {
-                        Tag.create({articleId: [newArticle.id], tags: e.trim()}, (err, tag) => {
-                            if(err) return res.json({msg: "Err while creating tag."});
-                        });
-                    } else if(existingTag) {
-                        Tag.findByIdAndUpdate(existingTag.id, {$push: {articleId: newArticle.id}}, {new: true}, (err, updatedTag) => {
-                            if(err) return res.json({msg: "Err while updating tag."});
-                        });
-                    }
-                });
-            });
-        };
+    req.body.userId = req.user.userId;
+    Article.create(req.body, (err, createdarticle) => {
+        if(err) return next(err);
+        if(!createdarticle) return res.json({success:false, msg: "Article not found"});
+        createdarticle.tagList.forEach(tag => {
+            Tag.findOne({tagText: tag}, (err, foundtag) => {
+                if(!foundtag) {
+                    Tag.create({articleId: createdarticle._id,tagText: tag}, (err, createdtag) => {
+                        if(err) return next(err);
+                        if(!createdtag) return res.json({success:false, msg: "Cannot create tag"});
+                    })
+                } else if (foundtag){
+                    Tag.findByIdAndUpdate(foundtag._id, {$push:{articleId: createdarticle._id}},{new: true},(err, updatedtag) => {
+                        if(err) return next(err);         
+              })
+                }
+            })
+        })
+        res.json({success:true, createdarticle});
 
-        User.findOneAndUpdate({_id: newArticle.userId}, {$push: {articlesId: newArticle.id}}, {new: true, upsert: false}, (err, updatedUser) => {
-            if(err) return res.json({msg: "Err while updating user with array of article id", err});
-            return res.json({msg: "User update successfull", newArticle});
-        });
-    });
-});
-
+    })
+})
 
 
 // Update an existing article.
@@ -159,48 +153,52 @@ router.delete('/:slug/comments/:id', (req, res, next) => {
 });
 
 // Favourite Article.
-router.post('/:slug/favorite', (req, res, next) => {
-    var slug = req.params.slug;
-    Article.findOne({slug}, (err, article) => {
-        if(err) return res.json({success: false, err});
-        if(!article) return res.json({msg: "No article found"});
-        Article.findByIdAndUpdate(article._id, {$push: {favorites: req.userId}}, {new: true}, (err, updatedArticle) => {
-            if(err) return res.json({success: false, err});
-            User.findByIdAndUpdate(req.userId, {$push: {favorited: article._id}}, {new: true}, (err, updatedUser) => {
-                if(err) return res.json({success: false, err});
-                return res.json({success: true, updatedArticle, updatedUser});
-            });
-        });
+router.post("/:slug/favorite", (req, res, next) => {
+    let slug = req.params.slug;
+    console.log(req.user);
+    Article.findOne({ slug }, (err, article) => {
+      if (err) return next(err);
+      if (!article) return res.json({ success: false, message: "No article Found!" });
+      Article.findOneAndUpdate({ slug }, { $push: { favorites: req.user.userId } },{new:true}, (err, favoritedArticle) => {
+          if (err) return next(err);
+          favoritedArticle.favoritesCount++;
+          User.findOneAndUpdate({ username: req.user.username }, { $push: { favorited: article._id } },{new:true}, (err, favoritedUser) => {
+              if (err) return next(err);
+              res.json({ favoritedArticle, favoritedUser });
+            }
+          );
+        }
+      );
     });
-});
+  });
 
 // UnFavorite an article.
-router.delete('/:slug/favorite', (req, res, next) => {
-    var slug = req.params.slug;
-    Article.findOne({slug}, (err, article) => {
-        if(err) return res.json({success: false, err});
-        if(!article) return res.json({msg: "No article found"});
-        Article.findByIdAndUpdate(article._id, {$pull: {favorites: req.userId}}, {new: true}, (err, updatedArticle) => {
-            if(err) return res.json({success: false, err});
-            User.findByIdAndUpdate(req.userId, {$pull: {favorited: article._id}}, {new: true}, (err, updatedUser) => {
-                if(err) return res.json({success: false, err});
-                return res.json({success: true, updatedArticle, updatedUser});
-            });
-        });
-    });
-});
+// router.delete('/:slug/favorite', (req, res, next) => {
+//     var slug = req.params.slug;
+//     Article.findOne({slug}, (err, article) => {
+//         if(err) return res.json({success: false, err});
+//         if(!article) return res.json({msg: "No article found"});
+//         Article.findByIdAndUpdate(article._id, {$pull: {favorites: req.userId}}, {new: true}, (err, updatedArticle) => {
+//             if(err) return res.json({success: false, err});
+//             User.findByIdAndUpdate(req.userId, {$pull: {favorited: article._id}}, {new: true}, (err, updatedUser) => {
+//                 if(err) return res.json({success: false, err});
+//                 return res.json({success: true, updatedArticle, updatedUser});
+//             });
+//         });
+//     });
+// });
 
-// // feed - Article feed by the users you following
-// router.get("/feed", (req,res) => {
-//     User.findById(req.user.userId, (err,user) => {
-//         if(err) return res.json({err});
-//         user.following.forEach(e => {
-//             Article.find({userId: e}, (err,feed) => {
-//                 if(err) return res.json({err});
-//                 res.json({feed});
-//             })
-//         })
-//     })
-// })
+// feed - Article feed by the users you following
+router.get("/feed", (req,res) => {
+    User.findById(req.user.userId, (err,user) => {
+        if(err) return res.json({err});
+        user.following.forEach(e => {
+            Article.find({userId: e}, (err,feed) => {
+                if(err) return res.json({err});
+                res.json({feed});
+            })
+        })
+    })
+})
 
 module.exports = router;
