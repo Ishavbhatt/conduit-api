@@ -162,7 +162,7 @@ router.post("/:slug/favorite", (req, res, next) => {
       Article.findOneAndUpdate({ slug }, { $push: { favorites: req.user.userId } },{new:true}, (err, favoritedArticle) => {
           if (err) return next(err);
           favoritedArticle.favoritesCount++;
-          User.findOneAndUpdate({ username: req.user.username }, { $push: { favorited: article._id } },{new:true}, (err, favoritedUser) => {
+          User.findOneAndUpdate({ username: req.user.username }, { $push: { favorited: article._id } },{new:true},(err, favoritedUser) => {
               if (err) return next(err);
               res.json({ favoritedArticle, favoritedUser });
             }
@@ -173,32 +173,38 @@ router.post("/:slug/favorite", (req, res, next) => {
   });
 
 // UnFavorite an article.
-// router.delete('/:slug/favorite', (req, res, next) => {
-//     var slug = req.params.slug;
-//     Article.findOne({slug}, (err, article) => {
-//         if(err) return res.json({success: false, err});
-//         if(!article) return res.json({msg: "No article found"});
-//         Article.findByIdAndUpdate(article._id, {$pull: {favorites: req.userId}}, {new: true}, (err, updatedArticle) => {
-//             if(err) return res.json({success: false, err});
-//             User.findByIdAndUpdate(req.userId, {$pull: {favorited: article._id}}, {new: true}, (err, updatedUser) => {
-//                 if(err) return res.json({success: false, err});
-//                 return res.json({success: true, updatedArticle, updatedUser});
-//             });
-//         });
-//     });
-// });
+router.delete('/:slug/favorite', (req, res, next) => {
+    var slug = req.params.slug;
+    Article.findOne({slug}, (err, article) => {
+        if(err) return res.json({success: false, err});
+        if(!article) return res.json({msg: "No article found"});
+        Article.findByIdAndUpdate(article._id, {$pull: {favorites: req.userId}}, {new: true}, (err, updatedArticle) => {
+            if(err) return res.json({success: false, err});
+            User.findByIdAndUpdate(req.userId, {$pull: {favorited: article._id}}, {new: true}, (err, updatedUser) => {
+                if(err) return res.json({success: false, err});
+                return res.json({success: true, updatedArticle, updatedUser});
+            });
+        });
+    });
+});
 
 // feed - Article feed by the users you following
-router.get("/feed", (req,res) => {
-    User.findById(req.user.userId, (err,user) => {
-        if(err) return res.json({err});
-        user.following.forEach(e => {
-            Article.find({userId: e}, (err,feed) => {
-                if(err) return res.json({err});
-                res.json({feed});
-            })
-        })
-    })
-})
+router.get("/feed", loggedUser, (req, res, next) => {
+    User.findOne({ username: req.user.username }, (err, user) => {
+      if (err) return next(err);
+      if (user.following.length) {
+        user.following.forEach(user => {
+          Article.find({ username: user })
+            .populate("author", "username")
+            .exec((err, articleFeeds) => {
+              if (err) return next(err);
+              return res.json({ articleFeeds });
+            });
+        });
+      } else {
+        res.json({ success: false, message: "follow to get feeds!" });
+      }
+    });
+  });
 
 module.exports = router;
